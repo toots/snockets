@@ -10,7 +10,8 @@ _            = require 'underscore'
 
 module.exports = class Snockets
   constructor: (@options = {}) ->
-    @options.src ?= '.'
+    unless _.isArray @options.src
+      @options.src = [@options.src || '.']
     @options.async ?= true
     @cache = {}
     @concatCache = {}
@@ -235,12 +236,23 @@ module.exports = class Snockets
       true
 
   absPath: (relPath) ->
-    if relPath.match EXPLICIT_PATH
-      relPath
-    else if @options.src.match EXPLICIT_PATH
-      @joinPath @options.src, relPath
-    else
-      @joinPath process.cwd(), @options.src, relPath
+    return relPath if relPath.match EXPLICIT_PATH
+
+    result = null
+    _.any @options.src, (src) =>
+      if src.match EXPLICIT_PATH
+        candidate = @joinPath src, relPath
+      else
+        candidate = @joinPath process.cwd(), src, relPath
+      result = candidate
+      return true if fs.existsSync(candidate)
+      
+      dir = path.dirname(candidate)
+      if fs.existsSync(dir) and fs.statSync(dir).isDirectory()
+        for file in fs.readdirSync(dir)
+          return true if stripExt(file) == path.basename(candidate)
+
+    result
 
   joinPath: ->
     filePath = path.join.apply path, arguments
